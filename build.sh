@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+sudo apt install libgtest-dev -y
+pip install ninja python-chess meson
 
 set -e
 
