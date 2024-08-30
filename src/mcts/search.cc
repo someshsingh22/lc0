@@ -619,28 +619,28 @@ NNCacheLock Search::GetCachedNNEval(const Node* node) const {
   return nneval;
 }
 
-void WriteGMLNode(int id, std::string move_string, std::string N_string, std::string Q_string, std::string D_string, std::string P_string, std::ofstream& file){
+void WriteGMLNode(int id, std::string move_string, std::string N_string, std::string Q_string, std::string D_string, std::string P_string){
  std::string quot = "\"";
- file << "node" << std::endl;
- file << "[" << std::endl;
- file << "id " + std::to_string(id) << std::endl;
- file << "move " + quot + move_string + quot << std::endl;
- file << "N " + quot + N_string + quot << std::endl;
- file << "Q " + quot + Q_string + quot << std::endl;
- file << "D " + quot + D_string + quot << std::endl;
- file << "P " + quot + P_string + quot << std::endl;
- file << "]" << std::endl;
+ LOGFILE << "<TREEGMLLINE>node" << std::endl;
+ LOGFILE << "<TREEGMLLINE>[" << std::endl;
+ LOGFILE << "<TREEGMLLINE>id " + std::to_string(id) << std::endl;
+ LOGFILE << "<TREEGMLLINE>move " + quot + move_string + quot << std::endl;
+ LOGFILE << "<TREEGMLLINE>N " + quot + N_string + quot << std::endl;
+ LOGFILE << "<TREEGMLLINE>Q " + quot + Q_string + quot << std::endl;
+ LOGFILE << "<TREEGMLLINE>D " + quot + D_string + quot << std::endl;
+ LOGFILE << "<TREEGMLLINE>P " + quot + P_string + quot << std::endl;
+ LOGFILE << "<TREEGMLLINE>]" << std::endl;
 }
 
-void WriteGMLEdge(int id_parent, int id, std::ofstream& file){
- file << "edge" << std::endl;
- file << "[" << std::endl;
- file << "source " + std::to_string(id_parent) << std::endl;
- file << "target " + std::to_string(id) << std::endl;
- file << "]" << std::endl;
+void WriteGMLEdge(int id_parent, int id){
+ LOGFILE << "<TREEGMLLINE>edge" << std::endl;
+ LOGFILE << "<TREEGMLLINE>[" << std::endl;
+ LOGFILE << "<TREEGMLLINE>source " + std::to_string(id_parent) << std::endl;
+ LOGFILE << "<TREEGMLLINE>target " + std::to_string(id) << std::endl;
+ LOGFILE << "<TREEGMLLINE>]" << std::endl;
 }
 
-void RecursiveGMLWrite(Node* node, std::ofstream& file, bool flip, int *id, int parent_id){
+void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id){
     std::string move_string = "";
     std::string N_string = "";
     std::string Q_string = "";
@@ -651,35 +651,34 @@ void RecursiveGMLWrite(Node* node, std::ofstream& file, bool flip, int *id, int 
     if (node->GetParent() != nullptr and node->GetParent()->GetN() > 0){
         move_string =  node->GetOwnEdge()->GetMove(flip).as_string();
         P_string = std::to_string(node->GetOwnEdge()->GetP());
-        WriteGMLEdge(parent_id, *id, file);
+        WriteGMLEdge(parent_id, *id);
         }
     N_string = std::to_string(node->GetN());
     Q_string = std::to_string(node->GetQ(0.0)); //TODO: add support for draw_score, currently assumed 0.0
     D_string = std::to_string(node->GetD());
-    WriteGMLNode(*id, move_string, N_string, Q_string, D_string, P_string, file);
+    WriteGMLNode(*id, move_string, N_string, Q_string, D_string, P_string);
     parent_id = *id;
     *id = *id + 1;
     flip = !flip;
     for (const auto& child : node->Edges()) {
         n = child.node();
         if (n != nullptr){
-            RecursiveGMLWrite(n, file, flip, id, parent_id);
+            RecursiveGMLWrite(n, flip, id, parent_id);
         }
     }
 }
 
 void WriteGMLTree(Node* root_node, bool black_play){
-    std::ofstream file;
-    file.open("tree.gml");
-    file << "graph" << std::endl;
-    file << "[" << std::endl;
-    file << "directed 1" << std::endl;
+    LOGFILE << "<TREEGMLSTART>" << std::endl;
+    LOGFILE << "<TREEGMLLINE>graph" << std::endl;
+    LOGFILE << "<TREEGMLLINE>[" << std::endl;
+    LOGFILE << "<TREEGMLLINE>directed 1" << std::endl;
     bool flip = black_play;
     int parent_id = 0;
     int id = 0;
-    RecursiveGMLWrite(root_node, file, flip, &id, parent_id);
-    file << "]" << std::endl;
-    file.close();
+    RecursiveGMLWrite(root_node, flip, &id, parent_id);
+    LOGFILE << "<TREEGMLLINE>]" << std::endl;
+    LOGFILE << "<TREEGMLSTART>" << std::endl;
 }
 
 void Search::MaybeTriggerStop(const IterationStats& stats,
