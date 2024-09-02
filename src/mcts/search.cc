@@ -629,7 +629,11 @@ void WriteGMLEdge(int id_parent, int id, std::string &output_string){
  output_string = output_string + "edge([(source " + std::to_string(id_parent) + "(target " + std::to_string(id) + "(](";
 }
 
-void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id, std::string &output_string){
+void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id, std::string &output_string, int depth){
+    if (current_depth > 10) {
+      LOGFILE << "Depth limit reached, stopping rollout write.";
+      return;
+    }
     std::string move_string = "";
     std::string N_string = "";
     std::string Q_string = "";
@@ -652,7 +656,7 @@ void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id, std::strin
     for (const auto& child : node->Edges()) {
         n = child.node();
         if (n != nullptr){
-            RecursiveGMLWrite(n, flip, id, parent_id, output_string);
+            RecursiveGMLWrite(n, flip, id, parent_id, output_string, depth+1);
         }
     }
 }
@@ -662,8 +666,8 @@ void WriteGMLTree(Node* root_node, bool black_play, std::string &output_string){
     bool flip = black_play;
     int parent_id = 0;
     int id = 0;
-    RecursiveGMLWrite(root_node, flip, &id, parent_id, output_string);
-    output_string = output_string + "])";
+    RecursiveGMLWrite(root_node, flip, &id, parent_id, output_string, 0);
+    output_string = output_string + "](";
 }
 
 void Search::MaybeTriggerStop(const IterationStats& stats,
