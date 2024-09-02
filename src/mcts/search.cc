@@ -258,7 +258,7 @@ inline double WDLRescale(float& v, float& d, float wdl_rescale_ratio,
 }
 }  // namespace
 
-void Search::SendUciInfo() REQUIRES(nodes_mutex_) REQUIRES(counters_mutex_) {
+void Search::SendUciInfo(std::string viewtree) REQUIRES(nodes_mutex_) REQUIRES(counters_mutex_) {
   const auto max_pv = params_.GetMultiPv();
   const auto edges = GetBestChildrenNoTemperature(root_node_, max_pv, 0);
   const auto score_type = params_.GetScoreType();
@@ -280,6 +280,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) REQUIRES(counters_mutex_) {
     common_info.hashfull =
         cache_->GetSize() * 1000LL / std::max(cache_->GetCapacity(), 1);
   }
+  common_info.comment = viewtree;
   if (nps_start_time_) {
     const auto time_since_first_batch_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -397,7 +398,7 @@ void Search::MaybeOutputInfo() {
        last_outputted_uci_info_.seldepth != max_depth_ ||
        last_outputted_uci_info_.time + kUciInfoMinimumFrequencyMs <
            GetTimeSinceStart())) {
-    SendUciInfo();
+    SendUciInfo("");
     if (params_.GetLogLiveStats()) {
       SendMovesStats();
     }
@@ -619,28 +620,16 @@ NNCacheLock Search::GetCachedNNEval(const Node* node) const {
   return nneval;
 }
 
-void WriteGMLNode(int id, std::string move_string, std::string N_string, std::string Q_string, std::string D_string, std::string P_string){
+void WriteGMLNode(int id, std::string move_string, std::string N_string, std::string Q_string, std::string D_string, std::string P_string, std::string &output_string){
  std::string quot = "\"";
- LOGFILE << "<TREEGMLLINE>node" << std::endl;
- LOGFILE << "<TREEGMLLINE>[" << std::endl;
- LOGFILE << "<TREEGMLLINE>id " + std::to_string(id) << std::endl;
- LOGFILE << "<TREEGMLLINE>move " + quot + move_string + quot << std::endl;
- LOGFILE << "<TREEGMLLINE>N " + quot + N_string + quot << std::endl;
- LOGFILE << "<TREEGMLLINE>Q " + quot + Q_string + quot << std::endl;
- LOGFILE << "<TREEGMLLINE>D " + quot + D_string + quot << std::endl;
- LOGFILE << "<TREEGMLLINE>P " + quot + P_string + quot << std::endl;
- LOGFILE << "<TREEGMLLINE>]" << std::endl;
+ output_string = output_string + "node([(id " + std::to_string(id) + "(move \"" + move_string + "\"(N " + N_string + "(Q " + Q_string + "(D " + D_string + "(P " + P_string + "(]("; 
 }
 
-void WriteGMLEdge(int id_parent, int id){
- LOGFILE << "<TREEGMLLINE>edge" << std::endl;
- LOGFILE << "<TREEGMLLINE>[" << std::endl;
- LOGFILE << "<TREEGMLLINE>source " + std::to_string(id_parent) << std::endl;
- LOGFILE << "<TREEGMLLINE>target " + std::to_string(id) << std::endl;
- LOGFILE << "<TREEGMLLINE>]" << std::endl;
+void WriteGMLEdge(int id_parent, int id, std::string &output_string){
+ output_string = output_string + "edge([(source " + std::to_string(id_parent) + "(target " + std::to_string(id) + "(](";
 }
 
-void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id){
+void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id, std::string &output_string){
     std::string move_string = "";
     std::string N_string = "";
     std::string Q_string = "";
@@ -651,34 +640,30 @@ void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id){
     if (node->GetParent() != nullptr and node->GetParent()->GetN() > 0){
         move_string =  node->GetOwnEdge()->GetMove(flip).as_string();
         P_string = std::to_string(node->GetOwnEdge()->GetP());
-        WriteGMLEdge(parent_id, *id);
+        WriteGMLEdge(parent_id, *id, output_string);
         }
     N_string = std::to_string(node->GetN());
     Q_string = std::to_string(node->GetQ(0.0)); //TODO: add support for draw_score, currently assumed 0.0
     D_string = std::to_string(node->GetD());
-    WriteGMLNode(*id, move_string, N_string, Q_string, D_string, P_string);
+    WriteGMLNode(*id, move_string, N_string, Q_string, D_string, P_string, output_string);
     parent_id = *id;
     *id = *id + 1;
     flip = !flip;
     for (const auto& child : node->Edges()) {
         n = child.node();
         if (n != nullptr){
-            RecursiveGMLWrite(n, flip, id, parent_id);
+            RecursiveGMLWrite(n, flip, id, parent_id, output_string);
         }
     }
 }
 
-void WriteGMLTree(Node* root_node, bool black_play){
-    LOGFILE << "<TREEGMLSTART>" << std::endl;
-    LOGFILE << "<TREEGMLLINE>graph" << std::endl;
-    LOGFILE << "<TREEGMLLINE>[" << std::endl;
-    LOGFILE << "<TREEGMLLINE>directed 1" << std::endl;
+void WriteGMLTree(Node* root_node, bool black_play, std::string &output_string){
+    output_string = "graph([(directed 1(";
     bool flip = black_play;
     int parent_id = 0;
     int id = 0;
-    RecursiveGMLWrite(root_node, flip, &id, parent_id);
-    LOGFILE << "<TREEGMLLINE>]" << std::endl;
-    LOGFILE << "<TREEGMLSTART>" << std::endl;
+    RecursiveGMLWrite(root_node, flip, &id, parent_id, output_string);
+    output_string = output_string + "])";
 }
 
 void Search::MaybeTriggerStop(const IterationStats& stats,
@@ -701,8 +686,9 @@ void Search::MaybeTriggerStop(const IterationStats& stats,
   // If we are the first to see that stop is needed.
   if (stop_.load(std::memory_order_acquire) && ok_to_respond_bestmove_ &&
       !bestmove_is_sent_) {
-    WriteGMLTree(root_node_, !played_history_.IsBlackToMove());
-    SendUciInfo();
+    std::string output_string = "";
+    WriteGMLTree(root_node_, !played_history_.IsBlackToMove(), output_string);
+    SendUciInfo(output_string);
     EnsureBestMoveKnown();
     SendMovesStats();
     BestMoveInfo info(final_bestmove_, final_pondermove_);
