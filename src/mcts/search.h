@@ -114,7 +114,7 @@ class Search {
   int64_t GetTimeSinceFirstBatch() const;
   void MaybeTriggerStop(const IterationStats& stats, StoppersHints* hints);
   void MaybeOutputInfo();
-  void SendUciInfo();  // Requires nodes_mutex_ to be held.
+  void SendUciInfo(std::string comment = "");
   // Sets stop to true and notifies watchdog thread.
   void FireStopInternal();
 
