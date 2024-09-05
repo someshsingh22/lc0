@@ -630,7 +630,7 @@ void WriteGMLEdge(int id_parent, int id, std::string &output_string){
 }
 
 void RecursiveGMLWrite(Node* node, bool flip, int *id, int parent_id, std::string &output_string, int depth){
-    if (current_depth > 10) {
+    if (depth > 10) {
       LOGFILE << "Depth limit reached, stopping rollout write.";
       return;
     }
